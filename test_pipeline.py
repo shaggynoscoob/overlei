@@ -3,7 +3,7 @@ from supabase import create_client, Client
 
 # Use your actual credentials from your Supabase settings page
 SUPABASE_URL = "https://bmcyrwunrhepkfofalbr.supabase.co"  
-SUPABASE_KEY = "sb_secret_F7qCH5AtlKEAJHnPWXscLw_Z-PpGWH2"                 
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")                
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 

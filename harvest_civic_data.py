@@ -1,3 +1,4 @@
+import os
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime
@@ -7,7 +8,9 @@ from supabase import create_client, Client
 # 1. INITIALIZE PROJECT PLATFORM SECURITY CORES
 # ========================================================
 SUPABASE_URL = "https://bmcyrwunrhepkfofalbr.supabase.co"  
-SUPABASE_KEY = "sb_secret_F7qCH5AtlKEAJHnPWXscLw_Z-PpGWH2"  # Use service role to bypass RLS for scraping updates
+
+# Replaces the raw string with a secure cloud environment variable pointer
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")  # Use service role to bypass RLS for scraping updates
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def harvest_all_civic_streams():
