@@ -1,0 +1,30 @@
+name: OVERLEI Infrastructure Training Pipeline
+
+# This tells GitHub to ONLY wake up when a PDF drops into your ingest folder
+on:
+  push:
+    paths:
+      - 'ingest/**.pdf'
+  workflow_dispatch: # Allows you to manually trigger it from your phone anytime
+
+jobs:
+  pdf-ingestion-round:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Initialize Python Runtime
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    # Installs pypdf so your script can shred the file completely in the cloud
+    - name: Install PDF Extractor Libraries
+      run: pip install pypdf requests supabase
+
+    - name: Run Cloud PDF Extractor
+      run: python read_pdf.py
+
+    - name: Run Sandbox Test Pipeline Validation
+      run: python test_pipeline.py
