@@ -27,4 +27,6 @@ jobs:
       run: python read_pdf.py
 
     - name: Run Sandbox Test Pipeline Validation
+      env:
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       run: python test_pipeline.py

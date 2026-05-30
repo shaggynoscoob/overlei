@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OVERLEI // Oahu Civic Context Console</title>
+    <style>
+        /* BASE DESIGN SYSTEM SYSTEM */
+        :root {
+            --bg-main: #0b0f12;
+            --bg-card: #111827;
+            --border-color: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent-kamaaina: #10b981; /* Botanical Green */
+            --accent-visitor: #f59e0b;  /* Sunset Gold */
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 1. WELCOME GATEWAY OVERLAY */
+        .gateway-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--bg-main);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999; transition: opacity 0.4s ease;
+        }
+        .gateway-content { text-align: center; padding: 2rem; max-width: 400px; width: 100%; }
+        .brand-title { font-size: 3rem; font-weight: 900; letter-spacing: -0.05em; margin: 0; color: var(--text-main); }
+        .brand-tagline { color: var(--text-muted); margin-top: 0.5rem; font-size: 1rem; }
+        .gateway-buttons { display: flex; flex-direction: column; gap: 1rem; margin-top: 2.5rem; }
+
+        .path-btn {
+            padding: 1.2rem; border: 1px solid var(--border-color); border-radius: 8px;
+            font-size: 1.1rem; font-weight: 600; cursor: pointer; color: var(--text-main);
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+            transition: transform 0.1s, border-color 0.2s;
+        }
+        .path-btn:active { transform: scale(0.98); }
+        .local-accent:hover { border-color: var(--accent-kamaaina); box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }
+        .visitor-accent:hover { border-color: var(--accent-visitor); box-shadow: 0 0 15px rgba(245, 158, 11, 0.2); }
+
+        /* 2. MAIN CONSOLE VIEWPORTS */
+        .main-layout { width: 100%; max-width: 600px; margin: 0 auto; padding-bottom: 80px; }
+        .interactive-map-frame {
+            height: 200px; width: 100%; background-color: #1e293b;
+            border-bottom: 2px solid var(--accent-kamaaina);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-muted); font-weight: 700; font-size: 0.9rem; letter-spacing: 0.05em;
+        }
+
+        /* QUICK NAVIGATION CHIPS */
+        .quick-nav-strip {
+            display: flex; gap: 0.5rem; padding: 1rem;
+            overflow-x: auto; scrollbar-width: none;
+        }
+        .quick-nav-strip::-webkit-scrollbar { display: none; }
+        .nav-chip {
+            padding: 0.6rem 1.2rem; background-color: var(--bg-card);
+            border: 1px solid var(--border-color); border-radius: 50px;
+            color: var(--text-main); font-weight: 600; font-size: 0.85rem;
+            cursor: pointer; white-space: nowrap; transition: background-color 0.2s;
+        }
+        .nav-chip:active { background-color: #1f2937; }
+
+        /* HIGH-DENSITY CARD DATA STREAM */
+        .card-stream-container { padding: 0 1rem; display: flex; flex-direction: column; gap: 1rem; }
+        .utility-card {
+            position: relative; background-color: var(--bg-card);
+            border: 1px solid var(--border-color); border-radius: 12px;
+            overflow: hidden; display: flex; flex-direction: column;
+        }
+        .card-media-frame { height: 160px; width: 100%; background-size: cover; background-position: center; }
+        .card-body { padding: 1rem; }
+        .card-badge {
+            display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px;
+            font-size: 0.7rem; font-weight: 800; text-transform: uppercase; margin-bottom: 0.5rem;
+        }
+        .badge-traffic { background-color: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid #ef4444; }
+        .badge-surf { background-color: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid #3b82f6; }
+        
+        .utility-card h3 { margin: 0 0 0.5rem 0; font-size: 1.2rem; }
+        .utility-card p { margin: 0; color: var(--text-muted); font-size: 0.9rem; line-height: 1.4; }
+
+        /* 🛡️ KAMAʻĀINA DATA PROTECTION SHIELDS */
+        .kamaaina-card-style { border-left: 4px solid var(--accent-kamaaina); }
+        .kamaaina-badge {
+            position: absolute; top: 10px; right: 10px;
+            background-color: rgba(16, 185, 129, 0.2); color: #34d399;
+            border: 1px solid var(--accent-kamaaina); padding: 0.3rem 0.6rem;
+            border-radius: 4px; font-size: 0.7rem; font-weight: 700; z-index: 10;
+        }
+        .resident-meta-row {
+            margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed var(--border-color);
+            font-size: 0.8rem; color: #a7f3d0; font-style: italic;
+        }
+
+        /* Visibility Filters controlled by body state tags */
+        body.visitor-view .utility-card[data-kamaaina="true"] { display: none !important; }
+        .hidden { display: none !important; }
+
+        /* FLOATING REWARD TOASTS & MODALS */
+        .achievement-banner {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white; padding: 0.8rem 1.5rem; border-radius: 50px; font-weight: 600;
+            box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3); z-index: 10000;
+            animation: bounceIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes bounceIn {
+            0% { transform: translateX(-50%) translateY(100px); opacity: 0; }
+            100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="visitor-view"> <div id="user-path-gateway" class="gateway-overlay">
+        <div class="gateway-content">
+            <h1 class="brand-title">OVERLEI</h1>
+            <p class="brand-tagline">Oahu Civil Ingestion Matrix</p>
+            <div class="gateway-buttons">
+                <button class="path-btn local-accent" onclick="setAppMode('kamaaina')">🌴 Kamaʻāina Console</button>
+                <button class="path-btn visitor-accent" onclick="setAppMode('visitor')">🌺 Visitor Portal</button>
+            </div>
+        </div>
+    </div>
+
+    <main id="app-viewport" class="main-layout hidden">
+        <header id="hero-map-container" class="interactive-map-frame">
+            LIVE MAP ENGINE VIEWPORT ACTIVE
+        </header>
+
+        <section class="quick-nav-strip">
+            <button class="nav-chip" onclick="addXP(50)">⚡ Verify Active Feeds</button>
+            <button class="nav-chip">🌊 Ocean Safety</button>
+            <button class="nav-chip">🚗 Transit Updates</button>
+        </section>
+
+        <section id="master-data-stream" class="card-stream-container">
+            
+            <div class="utility-card" data-kamaaina="false">
+                <div class="card-media-frame" style="background-image: url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500')"></div>
+                <div class="card-body">
+                    <span class="card-badge badge-surf">Surf Alert</span>
+                    <h3>North Shore Swell Warning</h3>
+                    <p>NWS Forecast: Breaking sets matching 12-15ft thresholds across outer reefs. Use extra safety parameters.</p>
+                </div>
+            </div>
+
+            <div class="utility-card kamaaina-card-style" data-kamaaina="true">
+                <span class="kamaaina-badge">🌺 Kamaʻāina Resource</span>
+                <div class="card-media-frame" style="background-image: url('https://images.unsplash.com/photo-1590674899484-d5640e854abe?w=500')"></div>
+                <div class="card-body">
+                    <span class="card-badge badge-traffic">Traffic Alert</span>
+                    <h3>Kamehameha Hwy Roving Paving</h3>
+                    <p>HDOT Core Project: Roving single-lane closures. Expect immediate localized delays approaching Haleiwa bypass routes.</p>
+                    <div class="resident-meta-row">📍 Community Context: Use Weed Circle cut-through vectors during peak hours.</div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <div id="achievement-toast" class="achievement-banner hidden"></div>
+
+    <script>
+        // CLIENT PERSISTENT STORAGE ENGAGEMENT ENGINE
+        let profile = JSON.parse(localStorage.getItem('overlei_metrics')) || { xp: 0 };
+
+        function setAppMode(mode) {
+            const body = document.body;
+            if (mode === 'kamaaina') {
+                body.className = 'kamaaina-view';
+            } else {
+                body.className = 'visitor-view';
+            }
+            document.getElementById('user-path-gateway').classList.add('hidden');
+            document.getElementById('app-viewport').classList.remove('hidden');
+        }
+
+        function addXP(amount) {
+            profile.xp += amount;
+            localStorage.setItem('overlei_metrics', JSON.stringify(profile));
+            
+            const toast = document.getElementById('achievement-toast');
+            toast.innerHTML = `🤙 +${amount} XP Gained! Total Context: ${profile.xp} XP`;
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+    </script>
+</body>
+</html>
