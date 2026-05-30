@@ -27,4 +27,4 @@ def extract_pdf_to_file(pdf_path, output_txt_path):
 
 # --- EXECUTION HOOK ---
 # Change 'test.pdf' to match your actual target newspaper file name
-extract_pdf_to_file("seeddata.pdf", "newspaper_output.txt")
+extract_pdf_to_file("ingest/infrastructure_update.pdf", "ingest/infrastructure_update.txt")
