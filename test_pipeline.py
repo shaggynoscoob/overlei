@@ -24,7 +24,7 @@ def run_batch_ingestion_pipeline():
 
     # 2. Configure Cloud Clients (Do this once outside the loop to save time)
     api_key = os.environ.get("GEMINI_API_KEY")
-    sb_url = "https://wbmvbwvpxfxtxevuboxv.supabase.co"
+    sb_url = "https://bmcyrwunrhepkfofalbr.supabase.co"
     sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
 
     if not api_key or not sb_key:
