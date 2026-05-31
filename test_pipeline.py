@@ -3,6 +3,7 @@ import json
 from pypdf import PdfReader
 from google import genai
 from google.genai import types
+from supabase import create_client, Client # <- Added Supabase import
 
 def extract_and_compile_pipeline():
     # 1. Target the raw PDF directly
@@ -26,7 +27,7 @@ def extract_and_compile_pipeline():
 
     print(f"📦 Successfully extracted {len(unstructured_payload)} characters. Transmitting to Gemini...")
 
-    # 2. Configure the NEW Google GenAI Client
+    # 2. Configure the Google GenAI Client
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         print("❌ CRITICAL ERROR: GEMINI_API_KEY not found in environment.")
@@ -34,50 +35,30 @@ def extract_and_compile_pipeline():
         
     client = genai.Client(api_key=api_key)
 
-    # 3. The Master System Prompt (The Brain)
+    # 3. The Master System Prompt (The Brain) - ALIGNED TO NEWSPAPER_LOGS
     master_system_prompt = """
-    You are the OVERLEI Master Spatial Context Compiler. Your purpose is to ingest unstructured real-time data streams and translate them into structured, high-density digital infrastructure nodes.
-
-    You must standardize the data into a strict JSON array of unified "Context Card" objects based on four core primitives:
-    1. SPATIAL BOUNDARY: Precise geolocation context.
-    2. TEMPORAL WINDOW: Hard operational entry and expiration windows.
-    3. CLASSIFICATION TIER: Segmentation between public and community-priority (kamaaina) utility.
-    4. ACTION METRIC: Real-world operational impact.
+    You are the OVERLEI Master Spatial Context Compiler. Ingest unstructured real-time data streams and translate them into structured digital infrastructure nodes.
 
     OUTPUT JSON SCHEMA:
-    Output ONLY a valid JSON array containing objects with these exact keys:
+    Output ONLY a valid JSON array containing objects with these EXACT flat keys mapping to a PostgreSQL database:
     {
-      "title": "Short, high-impact action title",
-      "description": "Concise operational summary",
-      "category": "Must match: [traffic, surf, safety, rec, grindz, culture]",
-      "spatial_context": {
-        "primary_sector": "Core region",
-        "specific_locale": "Exact landmark/road"
-      },
-      "temporal_window": {
-        "start_timestamp": "ISO 8601 or 'IMMEDIATE'",
-        "end_timestamp": "ISO 8601, 'PERMANENT', or calculated expiration",
-        "is_recurring": true/false
-      },
-      "classification_tier": {
-        "access": "'public' or 'kamaaina'",
-        "local_priority_notes": "If kamaaina, add hyper-local context/bypass routes. If public, leave empty."
-      },
-      "action_metric": {
-        "urgency_scale": "[LOW, MEDIUM, HIGH, CRITICAL]",
-        "impact_type": "Direct real-world result"
-      }
+      "target_place_id": "String - Generate a lowercase, underscore-separated slug of the primary location (e.g., 'haleiwa', 'honolulu_h1', 'waimea_bay')",
+      "source_type": "String - Classify the data source (e.g., 'infrastructure_alert', 'ocean_safety', 'community_event')",
+      "log_date": "String - YYYY-MM-DD format of the event. If unspecified, use the current context date of 2026.",
+      "extracted_insight": "String - The core operational summary, including exact dates, times, and Kamaʻāina bypass routes if applicable.",
+      "congestion_metric": "Integer - Scale of 1 to 10 evaluating traffic/operational disruption (1 = none, 10 = critical blockage)",
+      "event_tags": "Array of Strings - Provide 2 to 4 taxonomy tags (e.g., ['traffic', 'night_work', 'kamaaina_shield'])"
     }
 
     CRITICAL RULES:
-    - ZERO HALLUCINATIONS: Default missing timeframes to 24-hour logical expirations.
-    - THE RESIDENT SHIELD: If text contains neighborhood bypasses or local perks, set access to 'kamaaina'.
+    - ZERO HALLUCINATIONS. 
+    - THE RESIDENT SHIELD: If the text contains neighborhood bypasses or local resident notes, ensure 'kamaaina_shield' is included in the event_tags array.
     """
 
     print("🧠 Transmitting Payload to Gemini API...")
     
     try:
-        # 4. Execute the API Call using the new SDK syntax
+        # 4. Execute the API Call
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=f"{master_system_prompt}\n\nRAW SOURCE TEXT TO COMPILE:\n{unstructured_payload}",
@@ -89,13 +70,34 @@ def extract_and_compile_pipeline():
         # 5. Output the Compiled Results
         print("\n✅ --- COMPILATION SUCCESSFUL ---")
         clean_json = json.loads(response.text)
-        print(json.dumps(clean_json, indent=2))
+        print("JSON Validated. Printing Preview:")
+        print(json.dumps(clean_json[0], indent=2)) # Just print the first one to save log space
         
+        # --- 6. THE NEW DATABASE INJECTION LAYER ---
+        print("\n💾 Initiating Supabase Injection...")
+        
+        sb_url = "https://wbmvbwvpxfxtxevuboxv.supabase.co"
+        sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
+        
+        if not sb_key:
+            print("❌ Injection Aborted: Missing SUPABASE_SERVICE_KEY.")
+            return
+            
+        supabase: Client = create_client(sb_url, sb_key)
+        
+        # CHANGE "context_cards" TO YOUR ACTUAL SUPABASE TABLE NAME
+        target_table = "newspaper_logs"
+        
+        # Push the entire JSON array into the database in one shot
+        data, count = supabase.table(target_table).insert(clean_json).execute()
+        
+        print(f"🎉 SUCCESS! Injected {len(clean_json)} new infrastructure nodes directly into the '{target_table}' table.")
+
     except json.JSONDecodeError:
         print("⚠️ Warning: Output was not valid JSON.")
         print(response.text)
     except Exception as e:
-        print(f"❌ API Call Failed: {e}")
+        print(f"❌ Pipeline Execution Failed: {e}")
 
 if __name__ == "__main__":
     extract_and_compile_pipeline()
