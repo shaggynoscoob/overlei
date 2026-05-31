@@ -17,10 +17,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install Engine Dependencies
-        run: pip install pypdf requests supabase google-generativeai
+        run: pip install pypdf requests supabase google-genai
 
       - name: Run Consolidated Intelligence Pipeline
         env:
