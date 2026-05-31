@@ -1,41 +1,40 @@
 import os
 import json
+import shutil
 from pypdf import PdfReader
 from google import genai
 from google.genai import types
-from supabase import create_client, Client # <- Added Supabase import
+from supabase import create_client, Client
 
-def extract_and_compile_pipeline():
-    # 1. Target the raw PDF directly
-    pdf_path = "ingest/infrastructure_update.pdf"
+def run_batch_ingestion_pipeline():
+    print("\n🚀 --- OVERLEI BATCH INGESTION PIPELINE INITIALIZED ---")
     
-    if not os.path.exists(pdf_path):
-        print("❌ Pipeline Terminated: Target PDF does not exist inside /ingest/.")
-        return
-        
-    print("\n🚀 --- OVERLEI INTEL PIPELINE INITIALIZED ---")
-    print("📄 Extracting raw text from PDF in memory...")
+    # 1. Setup Directories
+    ingest_dir = "ingest"
+    archive_dir = "ingest/archive"
+    os.makedirs(archive_dir, exist_ok=True) # Creates the archive folder safely if it doesn't exist
     
-    unstructured_payload = ""
-    try:
-        reader = PdfReader(pdf_path)
-        for page in reader.pages:
-            unstructured_payload += page.extract_text() + "\n"
-    except Exception as e:
-        print(f"❌ Extraction Failed: {e}")
+    # Check if there are actually files to process
+    pdf_files = [f for f in os.listdir(ingest_dir) if f.endswith(".pdf")]
+    if not pdf_files:
+        print("📭 No new PDFs found in /ingest/. Pipeline shutting down cleanly.")
         return
 
-    print(f"📦 Successfully extracted {len(unstructured_payload)} characters. Transmitting to Gemini...")
+    print(f"📂 Found {len(pdf_files)} new document(s) to process.\n")
 
-    # 2. Configure the Google GenAI Client
+    # 2. Configure Cloud Clients (Do this once outside the loop to save time)
     api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        print("❌ CRITICAL ERROR: GEMINI_API_KEY not found in environment.")
-        return
-        
-    client = genai.Client(api_key=api_key)
+    sb_url = "https://wbmvbwvpxfxtxevuboxv.supabase.co"
+    sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
 
-    # 3. The Master System Prompt (The Brain) - ALIGNED TO NEWSPAPER_LOGS
+    if not api_key or not sb_key:
+        print("❌ CRITICAL ERROR: Missing Cloud API Keys in environment.")
+        return
+
+    gemini_client = genai.Client(api_key=api_key)
+    supabase: Client = create_client(sb_url, sb_key)
+
+    # 3. The Master System Prompt (Aligned to newspaper_logs)
     master_system_prompt = """
     You are the OVERLEI Master Spatial Context Compiler. Ingest unstructured real-time data streams and translate them into structured digital infrastructure nodes.
 
@@ -55,49 +54,48 @@ def extract_and_compile_pipeline():
     - THE RESIDENT SHIELD: If the text contains neighborhood bypasses or local resident notes, ensure 'kamaaina_shield' is included in the event_tags array.
     """
 
-    print("🧠 Transmitting Payload to Gemini API...")
-    
-    try:
-        # 4. Execute the API Call
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=f"{master_system_prompt}\n\nRAW SOURCE TEXT TO COMPILE:\n{unstructured_payload}",
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-            )
-        )
+    # 4. The Execution Loop (The Mailroom Clerk)
+    for filename in pdf_files:
+        print(f"🔄 Processing: {filename}...")
+        pdf_path = os.path.join(ingest_dir, filename)
+        archive_path = os.path.join(archive_dir, filename)
         
-        # 5. Output the Compiled Results
-        print("\n✅ --- COMPILATION SUCCESSFUL ---")
-        clean_json = json.loads(response.text)
-        print("JSON Validated. Printing Preview:")
-        print(json.dumps(clean_json[0], indent=2)) # Just print the first one to save log space
-        
-        # --- 6. THE NEW DATABASE INJECTION LAYER ---
-        print("\n💾 Initiating Supabase Injection...")
-        
-        sb_url = "https://wbmvbwvpxfxtxevuboxv.supabase.co"
-        sb_key = os.environ.get("SUPABASE_SERVICE_KEY")
-        
-        if not sb_key:
-            print("❌ Injection Aborted: Missing SUPABASE_SERVICE_KEY.")
-            return
-            
-        supabase: Client = create_client(sb_url, sb_key)
-        
-        # CHANGE "context_cards" TO YOUR ACTUAL SUPABASE TABLE NAME
-        target_table = "newspaper_logs"
-        
-        # Push the entire JSON array into the database in one shot
-        data, count = supabase.table(target_table).insert(clean_json).execute()
-        
-        print(f"🎉 SUCCESS! Injected {len(clean_json)} new infrastructure nodes directly into the '{target_table}' table.")
+        try:
+            # Step A: Extract Text
+            raw_text = ""
+            reader = PdfReader(pdf_path)
+            for page in reader.pages:
+                raw_text += page.extract_text() + "\n"
+                
+            # Step B: TITLE INJECTION (Anchor the context)
+            unstructured_payload = f"DOCUMENT TITLE: {filename}\n\nRAW SOURCE TEXT TO COMPILE:\n{raw_text}"
+            print(f"  ↳ Extracted {len(raw_text)} characters.")
 
-    except json.JSONDecodeError:
-        print("⚠️ Warning: Output was not valid JSON.")
-        print(response.text)
-    except Exception as e:
-        print(f"❌ Pipeline Execution Failed: {e}")
+            # Step C: Gemini API Call
+            response = gemini_client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=f"{master_system_prompt}\n\n{unstructured_payload}",
+                config=types.GenerateContentConfig(response_mime_type="application/json")
+            )
+            
+            clean_json = json.loads(response.text)
+            print(f"  ↳ AI Compilation Successful ({len(clean_json)} nodes generated).")
+            
+            # Step D: Database Injection
+            data, count = supabase.table("newspaper_logs").insert(clean_json).execute()
+            print(f"  ↳ 💾 Database Injection Successful.")
+            
+            # Step E: The Safety Net Archive Move
+            # This ONLY runs if Step A, B, C, and D succeed without errors.
+            shutil.move(pdf_path, archive_path)
+            print(f"✅ SUCCESS: {filename} securely archived.\n")
+
+        except Exception as e:
+            # If ANYTHING fails, it drops down here. The file is never moved.
+            print(f"❌ FAILED on {filename}. Error: {e}")
+            print(f"⚠️ {filename} remains in /ingest/ for the next run.\n")
+
+    print("🏁 Batch Processing Complete.")
 
 if __name__ == "__main__":
-    extract_and_compile_pipeline()
+    run_batch_ingestion_pipeline()
