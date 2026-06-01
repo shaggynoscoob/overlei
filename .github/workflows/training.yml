@@ -3,8 +3,11 @@ name: Infrastructure Training Pipeline
 on:
   push:
     paths:
-      - 'ingest/**'
+      - 'ingest/*.pdf' # Only triggers on new PDFs in the main folder (prevents infinite loops)
   workflow_dispatch:
+
+permissions:
+  contents: write # Gives the cloud runner security clearance to save the file move
 
 jobs:
   process-pdf:
@@ -27,3 +30,11 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python test_pipeline.py
+
+      - name: Save Archive Move to Repository
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ingest/
+          # This line checks if files moved. If they did, it commits and pushes them back to your repo.
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-archive processed PDFs [skip ci]" && git push)
