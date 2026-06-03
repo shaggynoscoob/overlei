@@ -2,3 +2,4 @@
 nsn/
 *.txt
 *.pdf
+!ingest/**
