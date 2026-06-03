@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OVERLEI - Live Map Test</title>
+
+    <!-- Step 2: MapLibre Engine Core Injection -->
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+    <style>
+        /* Force a full-screen standalone canvas for zero-distraction testing */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #111;
+            font-family: sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        /* Tiny indicator overlay to confirm everything is loaded */
+        .status-banner {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ffcc;
+            padding: 10px 15px;
+            border-radius: 5px;
+            border: 1px solid #00ffcc;
+            font-size: 14px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="status-banner">OVERLEI 6.0 // Live Map Status: Initializing...</div>
+    <div id="map"></div>
+
+    <script>
+        // Minimal Ignition Script to verify key authorization on the live web
+        try {
+            const map = new maplibregl.Map({
+                container: 'map',
+                style: 'https://api.maptiler.com/maps/chameleon/style.json?key=IOkNcMzIVPtFCaPgyuAa',
+                center: [-158.0560, 21.6200], // Centered right over the North Shore
+                zoom: 11,
+                pitch: 45
+            });
+
+            map.on('load', () => {
+                document.querySelector('.status-banner').innerText = "OVERLEI 6.0 // Live Map Status: Connected Successfully";
+                
+                // Mount 3D terrain mesh streams
+                map.addSource('maptiler-terrain', {
+                    type: 'raster-dem',
+                    url: 'https://api.maptiler.com/tiles/terrain-dem/tiles.json?key=IOkNcMzIVPtFCaPgyuAa',
+                    tileSize: 256
+                });
+                map.setTerrain({ source: 'maptiler-terrain', exaggeration: 1.2 });
+            });
+
+            map.on('error', (e) => {
+                document.querySelector('.status-banner').style.color = '#ff3333';
+                document.querySelector('.status-banner').style.borderColor = '#ff3333';
+                document.querySelector('.status-banner').innerText = "Live Map Status: Authentication Error (Check MapTiler Origin Restrictions)";
+                console.error(e);
+            });
+
+        } catch (error) {
+            console.error("Map initialization failed:", error);
+        }
+    </script>
+</body>
+</html>
