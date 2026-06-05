@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OVERLEI - Spatial Data Overlay Test</title>
 
-    <!-- MapLibre Engine Injection -->
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
         html, body {
@@ -71,6 +72,19 @@
             border-top: 1px solid #334155;
             color: #00ffcc;
         }
+        
+        /* Optional MapLibre Popup Styling override for a cleaner look */
+        .maplibregl-popup-content {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            padding: 10px;
+        }
+        .maplibregl-popup-close-button {
+            color: #333;
+            font-size: 16px;
+            padding: 4px 8px;
+        }
     </style>
 </head>
 <body>
@@ -98,19 +112,24 @@
     <script>
         const status = document.getElementById('status-display');
 
+        // 1. Initialize the Supabase Connection 
+        // IMPORTANT: Replace these two strings with your actual Supabase URL and public Anon Key
+        const _supabase = supabase.createClient('YOUR_SUPABASE_URL', 'YOUR_SUPABASE_ANON_KEY');
+
         try {
             const map = new maplibregl.Map({
                 container: 'map',
-                style: 'https://api.maptiler.com/maps/topo-v4/style.json?key=IOkNcMzIVPtFCaPgyuAa', // Updated to your verified Topo V4 style choice
+                style: 'https://api.maptiler.com/maps/topo-v4/style.json?key=IOkNcMzIVPtFCaPgyuAa',
                 center: [-158.0560, 21.6200], 
                 zoom: 12.5,
                 pitch: 45
             });
 
-            map.on('load', () => {
-                status.innerText = "Console: Core Topo Loaded. Fetching GeoJSON...";
+            // Notice: Changed to 'async ()' to allow the database fetch to happen inside
+            map.on('load', async () => {
+                status.innerText = "Console: Core Topo Loaded. Fetching Data Layers...";
 
-                // 1. Activate 3D Terrain Elevation Mesh Mesh
+                // --- A. TERRAIN & VECTOR LAYERS ---
                 map.addSource('maptiler-terrain', {
                     type: 'raster-dem',
                     url: 'https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=IOkNcMzIVPtFCaPgyuAa',
@@ -118,13 +137,11 @@
                 });
                 map.setTerrain({ source: 'maptiler-terrain', exaggeration: 1.2 });
 
-                // 2. Inject your Local Civic Street Centerlines Dataset
                 map.addSource('honolulu-civic-source', {
                     type: 'geojson',
                     data: './mapdata/Street_Centerlines_-8938268975544762819.geojson'
                 });
 
-                // 3. Paint the Civic Dataset as a unique Visual Layer (Neon Cyan Line Style)
                 map.addLayer({
                     id: 'honolulu-civic-layer',
                     type: 'line',
@@ -134,19 +151,68 @@
                         'line-cap': 'round'
                     },
                     paint: {
-                        'line-color': '#00ffcc', // Vibrant cyan to stand out against Topo contours
+                        'line-color': '#00ffcc',
                         'line-width': 2.5,
                         'line-opacity': 0.85
                     }
                 });
 
-                status.innerText = "Console: Active Rendering Online";
+                // --- B. OVERLEI SUPABASE DATA INJECTION ---
+                try {
+                    // Fetch every valid location from the master table
+                    const { data, error } = await _supabase
+                        .from('master_places')
+                        .select('*')
+                        .not('latitude', 'is', null);
 
-                // --- UI CONTROL EVENT LISTENERS ---
+                    if (error) throw error;
 
-                // Toggle MapTiler's Default Baseline Roads Layer
+                    status.innerText = `Console: Rendered ${data.length} Nodes.`;
+
+                    // Loop through the data and paint the map
+                    data.forEach(place => {
+                        // Create the physical HTML element for the marker
+                        const el = document.createElement('div');
+                        
+                        // Grab the AI-generated brand color (fallback to a clean white if missing)
+                        const markerColor = place.brand_color || '#ffffff';
+                        
+                        // Style the glowing node
+                        el.style.backgroundColor = markerColor;
+                        el.style.width = '14px';
+                        el.style.height = '14px';
+                        el.style.borderRadius = '50%';
+                        el.style.boxShadow = `0 0 10px ${markerColor}, 0 0 20px ${markerColor}`;
+                        el.style.border = '2px solid rgba(255, 255, 255, 0.8)';
+                        el.style.cursor = 'pointer';
+
+                        // Build the Popup using our AI micro-copy and local categories
+                        const popupContent = `
+                            <div style="font-family: sans-serif; padding: 5px; max-width: 200px;">
+                                <h3 style="margin: 0 0 4px 0; color: #222; font-size: 16px;">${place.name}</h3>
+                                <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #888;">
+                                    ${place.local_category || 'Point of Interest'}
+                                </p>
+                                <p style="margin: 0; font-size: 13px; color: #444; line-height: 1.4;">
+                                    <em>"${place.micro_copy || 'Local spot.'}"</em>
+                                </p>
+                            </div>
+                        `;
+
+                        // Anchor the marker to the exact GPS coordinates on the 3D terrain
+                        new maplibregl.Marker({ element: el })
+                            .setLngLat([place.longitude, place.latitude])
+                            .setPopup(new maplibregl.Popup({ offset: 15 }).setHTML(popupContent))
+                            .addTo(map);
+                    });
+                } catch (dbError) {
+                    console.error("Supabase Fetch Error:", dbError);
+                    status.innerText = "Console: Database connection failed.";
+                    status.style.color = '#ff3333';
+                }
+
+                // --- C. UI CONTROL EVENT LISTENERS ---
                 document.getElementById('toggle-maptiler-roads').addEventListener('change', (e) => {
-                    // MapTiler style layers containing road graphics typically target ID groups matching 'road' or 'transportation'
                     const targetLayers = map.getStyle().layers.filter(layer => 
                         layer.id.includes('road') || layer.id.includes('transportation')
                     );
@@ -158,7 +224,6 @@
                     status.innerText = `Console: MapTiler Roads set to ${visibility}`;
                 });
 
-                // Toggle your custom Honolulu GeoJSON Vector Layer
                 document.getElementById('toggle-civic-roads').addEventListener('change', (e) => {
                     const visibility = e.target.checked ? 'visible' : 'none';
                     map.setLayoutProperty('honolulu-civic-layer', 'visibility', visibility);
